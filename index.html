@@ -5451,9 +5451,34 @@ async function begin(mode){
  }));locked=true;ownerUid=c.user.uid;initialized=c.user.uid;
  })();running=task;try{return await task;}finally{if(running===task)running=null;}
 }
+async function clearSettledRoomMarker(uid){
+ const saved=localStorage.getItem('bowling-online-room:'+uid);
+ if(!saved||localStorage.getItem('bowling-pending-exit:'+uid)||playing())return;
+ const c=await PlayerAccounts.getContext();
+ const done=await c.fs.runTransaction(c.db,async tx=>{
+  const state=await tx.get(c.fs.doc(c.db,'playerActivity',uid));
+  if(!state.exists()||state.data().sessionId!==sessionId||state.data().mode!=='online')return false;
+  const session=await tx.get(c.fs.doc(c.db,'friendSessionsV24',uid));
+  if(!session.exists()||session.data().roomCode!==saved)return false;
+  const room=await tx.get(c.fs.doc(c.db,'rooms',saved));
+  if(!room.exists())return false;
+  const r=room.data();
+  if(!['finished','closed'].includes(r.status))return false;
+  const mine=r.hostUid===uid?'hostClaimed':r.guestUid===uid?'guestClaimed':null;
+  return !!mine&&r[mine]===true;
+ });
+ if(done&&!playing()&&localStorage.getItem('bowling-online-room:'+uid)===saved&&!localStorage.getItem('bowling-pending-exit:'+uid))
+  localStorage.removeItem('bowling-online-room:'+uid);
+}
 async function idle(){
  if(running||initBusy||!casinoState.player.isLoggedIn||playing())return;
- const uid=casinoState.player.uid;if(pendingRoom(uid))return;
+ const uid=casinoState.player.uid;
+ if(pendingRoom(uid)){
+  initBusy=true;
+  try{await clearSettledRoomMarker(uid);}catch(e){console.warn('Room recovery kept locked',e.code||e.message);}finally{initBusy=false;}
+  if(pendingRoom(uid))return;
+ }
+
  if(!locked&&initialized===uid)return;
  initBusy=true;
  try{const c=await PlayerAccounts.getContext();if(playing()||pendingRoom(uid))return;
