@@ -4316,6 +4316,7 @@ async function startGamePresence(app,auth,authModule){
    m.goOnline(db);
    stop=m.onValue(m.ref(db,'.info/connected'),async snap=>{
     if(snap.val()!==true||gen!==generation)return;
+    window.dispatchEvent(new Event('bowling-presence-reconnected'));
     const con=m.push(m.ref(db,'presence/'+user.uid+'/connections'));
     const last=m.ref(db,'presence/'+user.uid+'/lastOnline');
     try{
@@ -5441,6 +5442,13 @@ let sessionId=sessionStorage.getItem('bowling-free-admin-session');if(!sessionId
 let running=null,locked=false,ownerUid='',initialized='',initBusy=false;
 const playing=()=>!!(isBallRolling||MatchPlay.active||window.OnlineRooms?.active||window.OnlineRooms?.entryPending);
 const pendingRoom=uid=>!!localStorage.getItem('bowling-online-room:'+uid);
+let recoveryUid='',recoveryRoom='',recoveryDue=true,recoveryAttempts=0,recoveryNext=0;
+const recoveryPaused=()=>!!(playing()||document.hidden||document.body.classList.contains('online-spectating')||document.body.classList.contains('v38-live-view')||window.OnlineRooms?.room?.status==='rolling');
+function requestRecovery(){recoveryDue=true;recoveryAttempts=0;recoveryNext=0;}
+window.addEventListener('online',requestRecovery);
+window.addEventListener('bowling-presence-reconnected',requestRecovery);
+function recoveryShouldRun(now,due,attempts,next){return due&&attempts<3&&now>=next;}
+
 async function begin(mode){
  if(running||initBusy)throw Error('กำลังยืนยันสถานะบัญชี กรุณารอสักครู่');
  const task=(async()=>{const c=await PlayerAccounts.getContext();
@@ -5453,13 +5461,17 @@ async function begin(mode){
 }
 async function clearSettledRoomMarker(uid){
  const saved=localStorage.getItem('bowling-online-room:'+uid);
- if(!saved||localStorage.getItem('bowling-pending-exit:'+uid)||playing())return;
+ if(!saved||localStorage.getItem('bowling-pending-exit:'+uid)||recoveryPaused())return;
  const c=await PlayerAccounts.getContext();
+ if(recoveryPaused())return;
  const done=await c.fs.runTransaction(c.db,async tx=>{
+  if(recoveryPaused())return false;
   const state=await tx.get(c.fs.doc(c.db,'playerActivity',uid));
   if(!state.exists()||state.data().sessionId!==sessionId||state.data().mode!=='online')return false;
+  if(recoveryPaused())return false;
   const session=await tx.get(c.fs.doc(c.db,'friendSessionsV24',uid));
   if(!session.exists()||session.data().roomCode!==saved)return false;
+  if(recoveryPaused())return false;
   const room=await tx.get(c.fs.doc(c.db,'rooms',saved));
   if(!room.exists())return false;
   const r=room.data();
@@ -5467,13 +5479,19 @@ async function clearSettledRoomMarker(uid){
   const mine=r.hostUid===uid?'hostClaimed':r.guestUid===uid?'guestClaimed':null;
   return !!mine&&r[mine]===true;
  });
- if(done&&!playing()&&localStorage.getItem('bowling-online-room:'+uid)===saved&&!localStorage.getItem('bowling-pending-exit:'+uid))
+ if(done&&!recoveryPaused()&&localStorage.getItem('bowling-online-room:'+uid)===saved&&!localStorage.getItem('bowling-pending-exit:'+uid))
   localStorage.removeItem('bowling-online-room:'+uid);
 }
 async function idle(){
- if(running||initBusy||!casinoState.player.isLoggedIn||playing())return;
+ if(running||initBusy||!casinoState.player.isLoggedIn){if(!casinoState.player.isLoggedIn)recoveryUid='';return;}
+ if(recoveryPaused())return;
  const uid=casinoState.player.uid;
+ const savedRoom=localStorage.getItem('bowling-online-room:'+uid)||'';
+ if(recoveryUid!==uid||recoveryRoom!==savedRoom){recoveryUid=uid;recoveryRoom=savedRoom;requestRecovery();}
  if(pendingRoom(uid)){
+  if(!recoveryShouldRun(Date.now(),recoveryDue,recoveryAttempts,recoveryNext))return;
+  recoveryAttempts++;recoveryNext=Date.now()+30000;
+
   initBusy=true;
   try{await clearSettledRoomMarker(uid);}catch(e){console.warn('Room recovery kept locked',e.code||e.message);}finally{initBusy=false;}
   if(pendingRoom(uid))return;
