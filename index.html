@@ -4587,7 +4587,7 @@ window.OnlineRooms=(()=>{
  function showJoin(){if(room){tell('คุณอยู่ในห้อง '+code+' แล้ว');return;}by('joinRoomCode').value='';tell('กรอกตัวเลข 6 หลักที่เพื่อนส่งให้');by('joinRoomDialog').showModal();}
  window.RoomEntry={open:showJoin,prepare:()=>join().catch(()=>{})};
  const originalRecord=MatchPlay.recordPlayer;MatchPlay.recordPlayer=function(pins){if(room){if(['rolling','active'].includes(room.status))finishShot(pins);return;}return originalRecord(pins);};
- return{retryExit:()=>retryExit().catch(()=>{}),get leaving(){return leaveRequested;},generateCode,validCode,canThrow,beginShot,finishShot,create:()=>create().catch(()=>{}),join:()=>join().catch(()=>{}),ready:()=>ready().catch(()=>{}),claim:()=>claim().catch(()=>{}),start:()=>start().catch(()=>{}),leave,recover:()=>recover().catch(failure),reconnect,render,get active(){return !!room;},get entered(){return entered;}};
+ return{retryExit:()=>retryExit().catch(()=>{}),get leaving(){return leaveRequested;},generateCode,validCode,canThrow,beginShot,finishShot,create:()=>create().catch(()=>{}),join:()=>join().catch(()=>{}),ready:()=>ready().catch(()=>{}),claim:()=>claim().catch(()=>{}),start:()=>start().catch(()=>{}),leave,recover:()=>recover().catch(failure),reconnect,render,get entryPending(){return busy;},get active(){return !!room;},get entered(){return entered;}};
 })();
 
 </script>
@@ -5439,7 +5439,7 @@ return {stats,aggregate,open,queueOutcome};
 window.FreeAdminBridge=(()=>{
 let sessionId=sessionStorage.getItem('bowling-free-admin-session');if(!sessionId){sessionId=crypto.randomUUID();sessionStorage.setItem('bowling-free-admin-session',sessionId);}
 let running=null,locked=false,ownerUid='',initialized='',initBusy=false;
-const playing=()=>!!(isBallRolling||MatchPlay.active||window.OnlineRooms?.active);
+const playing=()=>!!(isBallRolling||MatchPlay.active||window.OnlineRooms?.active||window.OnlineRooms?.entryPending);
 const pendingRoom=uid=>!!localStorage.getItem('bowling-online-room:'+uid);
 async function begin(mode){
  if(running||initBusy)throw Error('กำลังยืนยันสถานะบัญชี กรุณารอสักครู่');
