@@ -4559,7 +4559,7 @@ window.OnlineRooms=(()=>{
  if(exitTask)return exitTask;
  exitTask=(async()=>{const c=await PlayerAccounts.getContext(),key='bowling-pending-exit:'+c.user.uid,oldCode=localStorage.getItem(key);if(!oldCode||!validCode(oldCode))return;
  window.FriendExperience?.exitStatus('กำลังยืนยันชิปห้อง '+oldCode+'…',true);
- try{await PlayerAccounts.withChipTransaction(()=>settle(c,c.fs.doc(c.db,'rooms',oldCode),true));if(localStorage.getItem(key)===oldCode)localStorage.removeItem(key);if(localStorage.getItem('bowling-online-room:'+c.user.uid)===oldCode)localStorage.removeItem('bowling-online-room:'+c.user.uid);window.FriendExperience?.exitStatus('ออกจากห้องแล้ว • ยืนยันยอดชิปสำเร็จ',false);}
+ try{await PlayerAccounts.withChipTransaction(()=>settle(c,c.fs.doc(c.db,'rooms',oldCode),true));if(localStorage.getItem(key)===oldCode)localStorage.removeItem(key);if(localStorage.getItem('bowling-online-room:'+c.user.uid)===oldCode)localStorage.removeItem('bowling-online-room:'+c.user.uid);window.FriendExperience?.exitStatus('ออกจากห้องแล้ว • ยืนยันยอดชิปสำเร็จ',false);setTimeout(()=>window.FreeAdminBridge?.releaseIdle(),0);}
  catch(e){window.FriendExperience?.exitStatus('ออกจากสนามแล้ว • ชิปยังไม่ยืนยัน กดตรวจชิปค้างอีกครั้ง',true);showToast(e.code==='permission-denied'?'ออกจากสนามแล้ว แต่ Firebase ปฏิเสธการคืนชิป กรุณา Publish Rules ในคู่มือ Spark':'ออกจากสนามแล้ว รายการชิปค้างถูกเก็บไว้ให้ลองใหม่');throw e;}
  })();try{return await exitTask;}finally{exitTask=null;}
  }
@@ -5509,7 +5509,7 @@ async function idle(){
 }
 setInterval(idle,1500);
 const originalBot=MatchPlay.startBot;MatchPlay.startBot=async function(){if(running||isBallRolling)return;try{await begin('bot');return originalBot.apply(this,arguments);}catch(e){showToast(e.message);}};
-return {begin,get entryBusy(){return !!running||initBusy;}};
+return {begin,releaseIdle:()=>idle(),get entryBusy(){return !!running||initBusy;}};
 })();</script>
 </body>
 </html>
